@@ -1,2 +1,5 @@
 #!/bin/bash
-source activate scraping_web && python /usr/src/app/scraping.py
+echo "entrooooooooooooooooooooooooooooooo"
+export PATH=~/anaconda3/bin:$PATH
+
+echo "pasoooooooooooooooo"
