@@ -1,47 +1,59 @@
 import sys
 sys.path.insert(0,'/usr/lib/chromium-browser/chromedriver')
+import json
+import boto3
+import uuid
+import datetime
+# Using selenium web driver to scrap the web
 from selenium import webdriver
 chrome_options = webdriver.ChromeOptions()
 chrome_options.add_argument('--headless')
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
 wd = webdriver.Chrome('chromedriver',chrome_options=chrome_options)
-import json
-import boto3
-import uuid
+wd_description = webdriver.Chrome('chromedriver',chrome_options=chrome_options)
 
-companies_so = []
-
+# boto3 to connect this script with s3 when this upload the data to bucket
 s3 = boto3.client('s3')
 bucket ='scraping-indeed'
 
-i = 1
+# I will save the file name with this name value "date"
+now = datetime.datetime.now()
+year = '{:02d}'.format(now.year)
+month = '{:02d}'.format(now.month)
+day = '{:02d}'.format(now.day)
+date = '{}-{}-{}'.format(year, month, day)
 
-while i <= 10 :
-  #https://stackoverflow.com/jobs/companies?v=true&pg=3
-  url = 'https://stackoverflow.com/jobs/companies?v=true&pg={}'.format(i)
+# Just to test this script I will go just for 10 page using a simple while to scrap each pagination
+i = 10
+while i < 100 :
+  url = 'https://ca.indeed.com/jobs?q={}&fromage={}&sort={}&start=60'.format('python sql','1','date',i)
+  # Scraping web DOM elements html
   wd.get(url)
-  result = wd.find_element_by_xpath("//div[@class='company-list']")
-  companies = result.find_elements_by_xpath("div[@class='dismissable-company -company ps-relative js-dismiss-overlay-container p24 bb bc-black-3']")
-  for x in companies:
-    data = {}
-    id_document = str(uuid.uuid4())
-    name_company = x.find_element_by_xpath("div[@class='grid']//div[@class='grid--cell fl1 text']//h2[@class='fs-body2 mb4']//a").text
-    link = x.find_element_by_xpath("div[@class='grid']//div[@class='grid--cell fl1 text']//h2[@class='fs-body2 mb4']//a").get_attribute('href')
-    location = x.find_element_by_xpath("div[@class='grid']//div[@class='grid--cell fl1 text']//div[@class='grid gs12 gsx ff-row-wrap fs-body1']//div").text
-    print(name_company)
-    print(link)
-    print(location)
-    data.update({"name_company": name_company })
-    data.update({"link": link })
-    data.update({"location":location})
+  result = wd.find_elements_by_xpath("//div[@class='jobsearch-SerpJobCard unifiedRow row result clickcard']")
+  for x in result:
+    try:
+      # Find and parse elements DOM
+      job = x.find_element_by_xpath("h2[@class='title']//a").text
+      link = x.find_element_by_xpath("h2[@class='title']//a").get_attribute("href")
+      location = x.find_element_by_class_name('location.accessible-contrast-color-location').text
+      company = x.find_element_by_class_name('company').text
+      wd_description.get(link)
+      description = wd_description.find_element_by_id("jobDescriptionText").text
+      # building the json file
+      data = {}
+      id_document = str(uuid.uuid4())
+      data.update({"id_document": id_document })
+      data.update({"job": job })
+      data.update({"link": link })
+      data.update({"location":location})
+      data.update({"company":company})
+      data.update({"description":description})
+      uploadByteStream = bytes(json.dumps(data).encode('UTF-8'))
+      # saving file json on s3 bucket
+      s3.put_object(Bucket=bucket, Key=id_document+'.json', Body=uploadByteStream)
+    except Exception as e:
+      print(e)
+      pass
 
-    uploadByteStream = bytes(json.dumps(data).encode('UTF-8'))
-    s3.put_object(Bucket=bucket, Key=id_document+'.json', Body=uploadByteStream)
-    #print(location)
-    # data.update({"name_company": name_company })
-    # data.update({"link": link })
-    # data.update({"location":location})
-    # companies_so.append(data)
-
-  i=i+1
+  i=i+10
