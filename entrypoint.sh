@@ -1,5 +1,3 @@
 #!/bin/bash
-echo "entrooooooooooooooooooooooooooooooo"
+echo "test"
 export PATH=~/anaconda3/bin:$PATH
-
-echo "pasoooooooooooooooo"
